@@ -1,53 +1,58 @@
-import pandas as pd
-from sklearn.model_selection import train_test_split
 from data_preprocessing import preprocess_data
-from model import PatientRiskPredictor
-from evaluate import evaluate_model
+from feature_engineering import FeatureEngineer
+from model_selection import ModelSelector
+import pandas as pd
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 
 def main():
-    # Create output directory for results
+    # Create output directory
     output_dir = 'results'
     os.makedirs(output_dir, exist_ok=True)
     
-    # Load the data
+    # Load and preprocess data
+    print("Loading data...")
     data = pd.read_csv('dataset\\Disease_symptom_and_patient_profile_dataset.csv')
     
-    # Preprocess the data
-    X, y, le_disease, le_gender = preprocess_data(data)
+    # Feature engineering
+    print("\nPerforming feature engineering...")
+    engineer = FeatureEngineer()
     
-    # Initialize the model
-    predictor = PatientRiskPredictor()
+    # Create medical features
+    data_engineered = engineer.create_medical_features(data)
     
-    # Perform cross-validation
-    cv_results = predictor.cross_validate(X, y)
+    # Preprocess the engineered data
+    X, y, le_disease, le_gender = preprocess_data(data_engineered, is_training=True)
     
-    # Save cross-validation results
-    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+    # Prepare features (encode categorical variables)
+    print("Preparing features...")
+    X_prepared = engineer.prepare_features(X)
     
-    # Plot cross-validation results
-    predictor.cv.plot_cv_results(
-        cv_results,
-        save_path=os.path.join(output_dir, f'cv_results_{timestamp}.png')
-    )
+    # Scale features
+    print("Scaling features...")
+    X_scaled = engineer.scale_features(X_prepared)
     
-    # Generate and save CV report
-    cv_report = predictor.cv.generate_cv_report(cv_results)
-    with open(os.path.join(output_dir, f'cv_report_{timestamp}.txt'), 'w') as f:
-        f.write(cv_report)
+    # Select important features
+    print("Selecting features...")
+    X_selected = engineer.select_features(X_scaled, y, method='mutual_info')
     
-    # Train final model on full dataset
-    predictor.train(X, y)
+    # Create polynomial features
+    print("Creating polynomial features...")
+    X_poly = engineer.create_polynomial_features(X_selected, degree=2)
     
-    # Save the model
-    predictor.save_model(os.path.join(output_dir, 'patient_risk_model.joblib'))
+    # Model selection and tuning
+    print("\nPerforming model selection...")
+    selector = ModelSelector()
     
-    # Print feature importance
-    feature_importance = predictor.get_feature_importance(X.columns)
-    print("\nFeature Importance:")
-    for feature, importance in sorted(feature_importance.items(), key=lambda x: x[1], reverse=True):
-        print(f"{feature}: {importance:.4f}")
+    # Find best model
+    best_model, model_performances = selector.select_best_model(X_poly, y)
+    
+    # Save results
+    print("\nSaving results...")
+    selector.save_model_results(output_dir)
+    
+    print(f"\nBest model: {type(best_model).__name__}")
+    print(f"Best score: {selector.best_score:.4f}")
 
 if __name__ == "__main__":
     main()

@@ -140,6 +140,7 @@ To implement this model in a production health app:
    - Implement feature selection algorithms
    - Add feature scaling options
    - Include polynomial features
+   - Bigger dataset
 
 2. Enhanced Model Selection:
    - Add support for multiple algorithms
