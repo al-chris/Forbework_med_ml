@@ -115,13 +115,14 @@ To implement this model in a production health app:
 
 ## Project Structure
 ```
-├── app.py                 # Streamlit web interface
-├── data_preprocessing.py  # Data cleaning and feature engineering
-├── model.py              # Main predictor class
-├── evaluate.py           # Evaluation metrics
-├── main.py              # Command-line interface
-├── requirements.txt      # Project dependencies
-└── README.md            # Project documentation
+├── dataset/                 # Folder to store the  dataset
+├── app.py                   # Streamlit web interface
+├── data_preprocessing.py    # Data cleaning and feature engineering
+├── model.py                 # Main predictor class
+├── evaluate.py              # Evaluation metrics
+├── main.py                  # Command-line interface
+├── requirements.txt         # Project dependencies
+└── README.md                # Project documentation
 ```
 
 ## Documentation
@@ -143,7 +144,6 @@ To implement this model in a production health app:
 2. Enhanced Model Selection:
    - Add support for multiple algorithms
    - Implement automated model selection
-   - Add hyperparameter tuning
 
 3. Extended Functionality:
    - Add support for more health indicators
@@ -177,4 +177,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Disease Symptoms Dataset contributors
 - Streamlit community
 - scikit-learn developers
-```
