@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 class ModelSelector:
     """
@@ -136,7 +136,7 @@ class ModelSelector:
                     'model': model,
                     'params': params,
                     'score': score,
-                    'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
                 }
                 
                 if self.best_score is None or score > self.best_score:
@@ -152,7 +152,7 @@ class ModelSelector:
     def save_model_results(self, save_path='model_results'):
         """Save model performance results"""
         os.makedirs(save_path, exist_ok=True)
-        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
         
         # Save performance metrics
         performance_data = {

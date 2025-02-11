@@ -433,9 +433,18 @@ class PatientRiskApp:
                 st.subheader("Feature Importance")
                 if hasattr(st.session_state.predictor, 'model'):
                     try:
+                        # Get number of features from the model or last_features
+                        n_features = (len(st.session_state.last_features) 
+                                    if st.session_state.last_features is not None 
+                                    else len(st.session_state.predictor.model.feature_importances_) 
+                                    if hasattr(st.session_state.predictor.model, 'feature_importances_')
+                                    else len(st.session_state.predictor.model.coef_[0])
+                                    if hasattr(st.session_state.predictor.model, 'coef_')
+                                    else 0)
+                        
                         feature_importance = st.session_state.predictor.get_feature_importance(
                             st.session_state.last_features if st.session_state.last_features is not None
-                            else ['Feature ' + str(i) for i in range(X.shape[1])]
+                            else [f'Feature {i}' for i in range(n_features)]
                         )
                         
                         # Create feature importance DataFrame
@@ -460,8 +469,9 @@ class PatientRiskApp:
                     except Exception as e:
                         st.warning(f"Cannot calculate feature importance for this model type: {type(st.session_state.predictor.model).__name__}")
                         st.info("Feature importance is only available for tree-based models, linear SVM, and logistic regression.")
+                        st.error(f"Error details: {str(e)}")
                 else:
-                    st.info("No feature importance data available.")
+                    st.info("No feature importance data available. Please train a model first.")
             
             with tab3:
                 st.subheader("Performance Metrics")

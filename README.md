@@ -164,9 +164,8 @@ To implement this model in a production health app:
    - Add interactive tutorials
    - Enable customizable dashboards
 
-## Version History
-- Current Version: 1.0.0 (Last Updated: 2025-02-11 13:47:57 UTC)
-- Initial Release: 1.0.0
+## Demo
+- [Demo]()
 
 ## Contributors
 - Current Maintainer: al-chris
