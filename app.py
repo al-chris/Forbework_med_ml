@@ -7,10 +7,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 from model import PatientRiskPredictor
 from data_preprocessing import preprocess_data
+from feature_engineering import FeatureEngineer
+from model_selection import ModelSelector
 
 # Constants
 CURRENT_USER = "al-chris"
-CURRENT_UTC = "2025-02-11 13:42:32"
+CURRENT_UTC = "2025-02-11 14:23:36"
 
 st.set_page_config(
     page_title="Patient Risk Predictor",
@@ -29,31 +31,110 @@ class PatientRiskApp:
             st.session_state.predictor = PatientRiskPredictor()
         if 'model_trained' not in st.session_state:
             st.session_state.model_trained = False
+        if 'feature_engineer' not in st.session_state:
+            st.session_state.feature_engineer = FeatureEngineer()
+        if 'model_selector' not in st.session_state:
+            st.session_state.model_selector = ModelSelector()
         if 'last_features' not in st.session_state:
             st.session_state.last_features = None
+            
+    def render_header(self):
+        """Render the header section of the app"""
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.title("🏥 Patient Risk Prediction System")
+            st.markdown("Advanced ML-powered healthcare risk prediction")
+        with col2:
+            st.text(f"Current user: {CURRENT_USER}")
+            st.text(f"UTC: {CURRENT_UTC}")
+            if st.session_state.model_trained:
+                st.success("Model Status: Trained")
+            else:
+                st.warning("Model Status: Not Trained")
             
     def render_sidebar(self):
         """Render the sidebar"""
         with st.sidebar:
             st.image("https://img.icons8.com/color/96/000000/hospital-3.png")
             st.title("Navigation")
+            
+            # Add model selection in sidebar
+            if st.session_state.model_trained:
+                st.subheader("Model Settings")
+                selected_model = st.selectbox(
+                    "Select Model",
+                    list(st.session_state.model_selector.model_performances.keys()),
+                    index=0
+                )
+                if selected_model:
+                    model_info = st.session_state.model_selector.model_performances[selected_model]
+                    st.metric("Model Score", f"{model_info['score']:.4f}")
+            
             return st.radio(
                 "Choose a page",
                 ["Home", "Train Model", "Make Predictions", "Model Analysis"]
             )
-            
-    def render_header(self):
-        """Render the header"""
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.title("🏥 Patient Risk Prediction System")
-        with col2:
-            st.text(f"Current user: {CURRENT_USER}")
-            st.text(f"UTC: {CURRENT_UTC}")
-            
+
     def render_train_model(self):
         """Render the model training page"""
         st.header("Train Model")
+        
+        # Add feature engineering options
+        with st.expander("Feature Engineering Settings"):
+            scaling_method = st.selectbox(
+                "Scaling Method",
+                ["standard", "minmax"],
+                help="Choose how to scale the features"
+            )
+            
+            feature_selection = st.checkbox(
+                "Enable Feature Selection",
+                value=True,
+                help="Select most important features"
+            )
+            
+            if feature_selection:
+                selection_method = st.selectbox(
+                    "Feature Selection Method",
+                    ["mutual_info", "f_score"]
+                )
+                
+            poly_features = st.checkbox(
+                "Enable Polynomial Features",
+                value=False,
+                help="Create polynomial feature combinations"
+            )
+            
+            if poly_features:
+                poly_degree = st.slider(
+                    "Polynomial Degree",
+                    min_value=2,
+                    max_value=3,
+                    value=2
+                )
+        
+        # Add model selection options
+        with st.expander("Model Selection Settings"):
+            search_method = st.selectbox(
+                "Search Method",
+                ["grid", "random"],
+                help="Choose how to search for best parameters"
+            )
+            
+            cv_folds = st.slider(
+                "Cross-validation Folds",
+                min_value=3,
+                max_value=10,
+                value=5
+            )
+            
+            if search_method == "random":
+                n_iter = st.slider(
+                    "Number of Iterations",
+                    min_value=10,
+                    max_value=100,
+                    value=20
+                )
         
         uploaded_file = st.file_uploader("Upload training data (CSV)", type=['csv'])
         
@@ -112,27 +193,71 @@ class PatientRiskApp:
                     return
                 
                 if st.button("Train Model"):
-                    with st.spinner("Training model with cross-validation..."):
+                    with st.spinner("Training model..."):
                         try:
-                            X, y, le_disease, le_gender = preprocess_data(data, is_training=True)
-                            # Store feature names for later use
-                            st.session_state.last_features = X.columns
-                            cv_results = st.session_state.predictor.cross_validate(X, y)
+                            # Create progress container
+                            progress_container = st.empty()
                             
-                            # Train final model
-                            st.session_state.predictor.train(X, y)
+                            # Feature engineering
+                            progress_container.text("Performing feature engineering...")
+                            data_engineered = st.session_state.feature_engineer.create_medical_features(data)
+                            
+                            # Preprocess data
+                            progress_container.text("Preprocessing data...")
+                            X, y, le_disease, le_gender = preprocess_data(data_engineered, is_training=True)
+                            
+                            # Prepare features
+                            progress_container.text("Preparing features...")
+                            X_prepared = st.session_state.feature_engineer.prepare_features(X)
+                            
+                            # Scale features
+                            progress_container.text("Scaling features...")
+                            X_scaled = st.session_state.feature_engineer.scale_features(X_prepared, method=scaling_method)
+                            
+                            # Feature selection if enabled
+                            if feature_selection:
+                                progress_container.text("Selecting features...")
+                                X_selected = st.session_state.feature_engineer.select_features(
+                                    X_scaled, y, method=selection_method
+                                )
+                            else:
+                                X_selected = X_scaled
+                            
+                            # Polynomial features if enabled
+                            if poly_features:
+                                progress_container.text("Creating polynomial features...")
+                                X_final = st.session_state.feature_engineer.create_polynomial_features(
+                                    X_selected, degree=poly_degree
+                                )
+                            else:
+                                X_final = X_selected
+                            
+                            # Store feature names
+                            st.session_state.last_features = X_final.columns
+                            
+                            # Model selection
+                            progress_container.text("Selecting best model...")
+                            best_model, model_performances = st.session_state.model_selector.select_best_model(
+                                X_final, y, cv=cv_folds
+                            )
+                            
+                            # Store the best model
+                            st.session_state.predictor.model = best_model
                             st.session_state.model_trained = True
                             
-                            # Show cross-validation results
-                            st.subheader("Cross-Validation Results")
-                            for metric, values in cv_results.items():
-                                st.metric(
-                                    label=metric.capitalize(),
-                                    value=f"{values['mean']:.3f}",
-                                    delta=f"±{values['std']:.3f}"
-                                )
+                            # Clear progress container
+                            progress_container.empty()
                             
                             st.success("Model trained successfully!")
+                            
+                            # Display model performance summary
+                            st.subheader("Model Performance Summary")
+                            for model_name, info in model_performances.items():
+                                st.metric(
+                                    label=model_name,
+                                    value=f"{info['score']:.4f}",
+                                    delta=f"{info['score'] - st.session_state.model_selector.best_score:.4f}"
+                                )
                             
                         except Exception as e:
                             st.error(f"Error during model training: {str(e)}")
@@ -141,7 +266,7 @@ class PatientRiskApp:
             except Exception as e:
                 st.error(f"Error reading CSV file: {str(e)}")
                 st.info("Please ensure your file is a valid CSV format.")
-                
+
     def render_predictions(self):
         """Render the predictions page"""
         st.header("Make Predictions")
@@ -180,11 +305,40 @@ class PatientRiskApp:
             })
             
             try:
-                # Preprocess input with is_training=False
-                X, _, _, _ = preprocess_data(input_data, is_training=False)
+                # Feature engineering for prediction
+                input_engineered = st.session_state.feature_engineer.create_medical_features(input_data)
+                
+                # Preprocess input
+                X, _, _, _ = preprocess_data(input_engineered, is_training=False)
+                
+                # Prepare features
+                X_prepared = st.session_state.feature_engineer.prepare_features(X)
+                
+                # Scale features
+                X_scaled = st.session_state.feature_engineer.scale_features(X_prepared)
+                
+                # Apply same feature selection if it was used
+                if hasattr(st.session_state.feature_engineer, 'feature_selector') and \
+                   st.session_state.feature_engineer.feature_selector is not None:
+                    X_selected = pd.DataFrame(
+                        st.session_state.feature_engineer.feature_selector.transform(X_scaled),
+                        columns=st.session_state.feature_engineer.selected_features
+                    )
+                else:
+                    X_selected = X_scaled
+                
+                # Apply polynomial features if they were used
+                if hasattr(st.session_state.feature_engineer, 'poly_features') and \
+                   st.session_state.feature_engineer.poly_features is not None:
+                    X_final = pd.DataFrame(
+                        st.session_state.feature_engineer.poly_features.transform(X_selected),
+                        columns=st.session_state.last_features
+                    )
+                else:
+                    X_final = X_selected
                 
                 # Make prediction
-                prediction = st.session_state.predictor.predict(X)[0]
+                prediction = st.session_state.predictor.predict(X_final)[0]
                 
                 # Display result
                 st.subheader("Prediction Result")
@@ -207,7 +361,7 @@ class PatientRiskApp:
                     
                 # Display confidence metrics
                 st.subheader("Prediction Details")
-                prediction_proba = st.session_state.predictor.model.predict_proba(X)[0]
+                prediction_proba = st.session_state.predictor.model.predict_proba(X_final)[0]
                 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -224,7 +378,7 @@ class PatientRiskApp:
             except Exception as e:
                 st.error(f"Error making prediction: {str(e)}")
                 st.info("Please ensure all input fields are filled correctly.")
-                
+
     def render_analysis(self):
         """Render the model analysis page"""
         st.header("Model Analysis")
@@ -235,12 +389,84 @@ class PatientRiskApp:
             
         try:
             # Create tabs for different analyses
-            tab1, tab2, tab3 = st.tabs(["Performance Metrics", "Feature Analysis", "Model Details"])
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "Model Comparison",
+                "Feature Importance",
+                "Performance Metrics",
+                "Model Details"
+            ])
             
             with tab1:
-                st.subheader("Model Performance Metrics")
+                st.subheader("Model Comparison")
+                if hasattr(st.session_state.model_selector, 'model_performances'):
+                    # Create comparison DataFrame
+                    comparison_data = {
+                        'Model': [],
+                        'Score': [],
+                        'Timestamp': []
+                    }
+                    
+                    for model_name, info in st.session_state.model_selector.model_performances.items():
+                        comparison_data['Model'].append(model_name)
+                        comparison_data['Score'].append(info['score'])
+                        comparison_data['Timestamp'].append(info['timestamp'])
+                    
+                    comparison_df = pd.DataFrame(comparison_data)
+                    
+                    # Plot comparison
+                    fig = px.bar(
+                        comparison_df,
+                        x='Model',
+                        y='Score',
+                        title='Model Performance Comparison'
+                    )
+                    st.plotly_chart(fig)
+                    
+                    # Display comparison table
+                    st.dataframe(comparison_df.style.format({
+                        'Score': '{:.4f}'
+                    }))
+                else:
+                    st.info("No model comparison data available.")
+            
+            with tab2:
+                st.subheader("Feature Importance")
+                if hasattr(st.session_state.predictor, 'model'):
+                    try:
+                        feature_importance = st.session_state.predictor.get_feature_importance(
+                            st.session_state.last_features if st.session_state.last_features is not None
+                            else ['Feature ' + str(i) for i in range(X.shape[1])]
+                        )
+                        
+                        # Create feature importance DataFrame
+                        feat_imp_df = pd.DataFrame({
+                            'Feature': list(feature_importance.keys()),
+                            'Importance': list(feature_importance.values())
+                        }).sort_values('Importance', ascending=False)
+                        
+                        # Plot feature importance
+                        fig = px.bar(
+                            feat_imp_df,
+                            x='Feature',
+                            y='Importance',
+                            title='Feature Importance Analysis'
+                        )
+                        st.plotly_chart(fig)
+                        
+                        # Display feature importance table
+                        st.dataframe(feat_imp_df.style.format({
+                            'Importance': '{:.3f}'
+                        }))
+                    except Exception as e:
+                        st.warning(f"Cannot calculate feature importance for this model type: {type(st.session_state.predictor.model).__name__}")
+                        st.info("Feature importance is only available for tree-based models, linear SVM, and logistic regression.")
+                else:
+                    st.info("No feature importance data available.")
+            
+            with tab3:
+                st.subheader("Performance Metrics")
                 
-                # Get the last cross-validation results
+                # Get cross-validation results
                 if hasattr(st.session_state.predictor, 'last_cv_results'):
                     cv_results = st.session_state.predictor.last_cv_results
                     
@@ -289,48 +515,42 @@ class PatientRiskApp:
                     )
                     
                     st.plotly_chart(fig)
+                    
+                    # Add distribution plots for each metric
+                    st.subheader("Metric Distributions")
+                    for metric, values in cv_results.items():
+                        fig = px.box(
+                            y=values['scores'],
+                            title=f"{metric.capitalize()} Distribution"
+                        )
+                        st.plotly_chart(fig)
+                        
                 else:
-                    st.info("No cross-validation results available. Please train the model first.")
+                    st.info("No performance metrics available.")
             
-            with tab2:
-                st.subheader("Feature Importance Analysis")
-                if hasattr(st.session_state.predictor, 'model'):
-                    feature_importance = st.session_state.predictor.get_feature_importance(
-                        st.session_state.last_features if st.session_state.last_features is not None
-                        else ['Feature ' + str(i) for i in range(len(st.session_state.predictor.model.feature_importances_))]
-                    )
-                    
-                    # Create feature importance DataFrame
-                    feat_imp_df = pd.DataFrame({
-                        'Feature': list(feature_importance.keys()),
-                        'Importance': list(feature_importance.values())
-                    }).sort_values('Importance', ascending=False)
-                    
-                    # Plot feature importance
-                    fig = px.bar(
-                        feat_imp_df,
-                        x='Feature',
-                        y='Importance',
-                        title='Feature Importance Analysis'
-                    )
-                    st.plotly_chart(fig)
-                    
-                    # Display feature importance table
-                    st.dataframe(feat_imp_df.style.format({
-                        'Importance': '{:.3f}'
-                    }))
-                else:
-                    st.info("No feature importance data available. Please train the model first.")
-            
-            with tab3:
+            with tab4:
                 st.subheader("Model Details")
                 if hasattr(st.session_state.predictor, 'model'):
                     # Display model parameters
                     st.json({
                         'Model Type': str(type(st.session_state.predictor.model).__name__),
-                        'Number of Features': len(st.session_state.predictor.model.feature_importances_),
+                        'Number of Features': len(st.session_state.last_features) if st.session_state.last_features is not None 
+                            else len(st.session_state.predictor.model.feature_importances_),
                         'Model Parameters': st.session_state.predictor.model.get_params()
                     })
+                    
+                    # Feature engineering details
+                    st.subheader("Feature Engineering Details")
+                    fe_details = {
+                        "Original Features": len(st.session_state.feature_engineer.original_features) 
+                            if st.session_state.feature_engineer.original_features is not None else "N/A",
+                        "Selected Features": len(st.session_state.feature_engineer.selected_features)
+                            if st.session_state.feature_engineer.selected_features is not None else "N/A",
+                        "Polynomial Features": "Enabled" if st.session_state.feature_engineer.poly_features is not None else "Disabled",
+                        "Scaling Method": st.session_state.feature_engineer.scaler.__class__.__name__
+                            if st.session_state.feature_engineer.scaler is not None else "None"
+                    }
+                    st.json(fe_details)
                     
                     # Add download buttons for reports
                     st.subheader("Download Reports")
@@ -343,7 +563,7 @@ class PatientRiskApp:
                             mime="text/plain"
                         )
                 else:
-                    st.info("No model details available. Please train the model first.")
+                    st.info("No model details available.")
                     
         except Exception as e:
             st.error(f"Error in model analysis: {str(e)}")
@@ -359,8 +579,18 @@ class PatientRiskApp:
         report.append(f"Generated by: {CURRENT_USER}")
         report.append("\n")
         
+        # Add model comparison results
+        if hasattr(st.session_state.model_selector, 'model_performances'):
+            report.append("MODEL COMPARISON")
+            report.append("-" * 30)
+            for model_name, info in st.session_state.model_selector.model_performances.items():
+                report.append(f"\n{model_name}")
+                report.append(f"Score: {info['score']:.4f}")
+                report.append(f"Timestamp: {info['timestamp']}")
+        
+        # Add cross-validation results
         if hasattr(st.session_state.predictor, 'last_cv_results'):
-            report.append("CROSS-VALIDATION RESULTS")
+            report.append("\nCROSS-VALIDATION RESULTS")
             report.append("-" * 30)
             for metric, values in st.session_state.predictor.last_cv_results.items():
                 report.append(f"\n{metric.upper()}")
@@ -369,13 +599,16 @@ class PatientRiskApp:
                 report.append(f"Min: {min(values['scores']):.3f}")
                 report.append(f"Max: {max(values['scores']):.3f}")
         
+        # Add feature engineering details
+        report.append("\nFEATURE ENGINEERING DETAILS")
+        report.append("-" * 30)
+        report.append(f"Original Features: {len(st.session_state.feature_engineer.original_features) if st.session_state.feature_engineer.original_features is not None else 'N/A'}")
+        report.append(f"Selected Features: {len(st.session_state.feature_engineer.selected_features) if st.session_state.feature_engineer.selected_features is not None else 'N/A'}")
+        report.append(f"Polynomial Features: {'Enabled' if st.session_state.feature_engineer.poly_features is not None else 'Disabled'}")
+        report.append(f"Scaling Method: {st.session_state.feature_engineer.scaler.__class__.__name__ if st.session_state.feature_engineer.scaler is not None else 'None'}")
+        
+        # Add feature importance
         if hasattr(st.session_state.predictor, 'model'):
-            report.append("\nMODEL PARAMETERS")
-            report.append("-" * 30)
-            params = st.session_state.predictor.model.get_params()
-            for param, value in params.items():
-                report.append(f"{param}: {value}")
-            
             report.append("\nFEATURE IMPORTANCE")
             report.append("-" * 30)
             feature_importance = st.session_state.predictor.get_feature_importance(
@@ -393,17 +626,18 @@ class PatientRiskApp:
         ## Welcome to the Patient Risk Prediction System
         
         This application helps healthcare professionals predict potential patient health risks 
-        using machine learning. The system provides:
+        using advanced machine learning techniques. The system provides:
         
-        - 📊 Model training with cross-validation
+        - 📊 Advanced feature engineering and model selection
         - 🔍 Individual patient risk prediction
         - 📈 Detailed model analysis and metrics
-        - 📋 Batch prediction capabilities
+        - 📋 Comprehensive performance reports
         
         ### Getting Started
         1. Go to the "Train Model" page to upload your training data
-        2. Use the "Make Predictions" page to predict individual patient risks
-        3. Check the "Model Analysis" page for detailed model performance metrics
+        2. Configure feature engineering and model selection settings
+        3. Use the "Make Predictions" page to predict individual patient risks
+        4. Check the "Model Analysis" page for detailed performance metrics
         
         ### Data Format Requirements
         Upload CSV files with the following columns:
@@ -446,7 +680,7 @@ class PatientRiskApp:
         with status_col2:
             st.metric(
                 "Last Updated",
-                "2025-02-11 13:44:24" if st.session_state.model_trained else "N/A"
+                CURRENT_UTC if st.session_state.model_trained else "N/A"
             )
     
     def run(self):
