@@ -158,14 +158,8 @@ To implement this model in a production health app:
    - Include data drift detection
    - Add model performance tracking
 
-5. User Interface Improvements:
-   - Add dark mode support
-   - Implement mobile responsiveness
-   - Add interactive tutorials
-   - Enable customizable dashboards
-
 ## Demo
-- [Demo]()
+- [Demo](https://forbework-med-ml.onrender.com/)
 
 ## Contributors
 - Current Maintainer: al-chris
