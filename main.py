@@ -36,20 +36,25 @@ def main():
     print("Selecting features...")
     X_selected = engineer.select_features(X_scaled, y, method='mutual_info')
     
-    # Create polynomial features
-    print("Creating polynomial features...")
-    X_poly = engineer.create_polynomial_features(X_selected, degree=2)
-    
-    # Model selection and tuning
+    # Use selected features for model selection
     print("\nPerforming model selection...")
     selector = ModelSelector()
     
-    # Find best model
-    best_model, model_performances = selector.select_best_model(X_poly, y)
+    # Find best model using selected features
+    best_model, model_performances = selector.select_best_model(X_selected, y)
+    
+    # Save the feature selector for later use in prediction
+    import joblib
+    fs_path = os.path.join(output_dir, 'feature_selector.pkl')
+    joblib.dump(engineer.feature_selector, fs_path)
     
     # Save results
     print("\nSaving results...")
     selector.save_model_results(output_dir)
+
+    # Save the best model
+    model_path = os.path.join(output_dir, 'best_model.pkl')
+    selector.save_model(model_path)
     
     print(f"\nBest model: {type(best_model).__name__}")
     print(f"Best score: {selector.best_score:.4f}")

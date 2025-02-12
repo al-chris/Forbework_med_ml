@@ -8,6 +8,8 @@ import pandas as pd
 import json
 import os
 from datetime import datetime, timezone
+import pickle
+import joblib
 
 class ModelSelector:
     """
@@ -184,3 +186,12 @@ class ModelSelector:
             
         with open(f'{save_path}/performance_report_{timestamp}.txt', 'w') as f:
             f.write('\n'.join(report))
+
+    def save_model(self, save_path='best_model.pkl'):
+        """Save the best model to a file"""
+        if self.best_model is not None:
+            # with open(save_path, 'wb') as f:
+            #     pickle.dump(self.best_model, f)
+            joblib.dump(self.best_model, save_path)
+        else:
+            raise ValueError("No model to save. Train the model first.")
