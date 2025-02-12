@@ -14,13 +14,14 @@ def main():
     if not os.path.exists(model_path):
         print("Trained model file not found. Train and save the model first.")
         sys.exit(1)
-    with open(model_path, 'rb') as f:
+    # with open(model_path, 'rb') as f:
         # best_model = pickle.load(f)
-        best_model = joblib.load(f)
+    best_model = joblib.load(model_path)
     
     # Load prediction data (provide CSV file path as first argument or use default)
     input_file = sys.argv[1] if len(sys.argv) > 1 else 'dataset\\Disease_symptom_and_patient_profile_dataset.csv'
     data = pd.read_csv(input_file)
+    print(data.head(5))
     
     # Feature engineering and preprocessing pipeline
     engineer = FeatureEngineer()
@@ -29,6 +30,8 @@ def main():
     X, _, _, _ = preprocess_data(data_engineered, is_training=False)
     X_prepared = engineer.prepare_features(X)
     X_scaled = engineer.scale_features(X_prepared)
+    # After preprocessing but before feature selection
+    print(X_scaled.columns)
     if 'Outcome Variable' in X_scaled.columns:
         X_scaled = X_scaled.drop('Outcome Variable', axis=1)
     # Load the saved feature selector and transform the scaled features

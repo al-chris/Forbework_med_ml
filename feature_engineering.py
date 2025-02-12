@@ -35,6 +35,9 @@ class FeatureEngineer:
         """
         df = df.copy()
         
+        # Convert Age column to numeric (handle string inputs)
+        df['Age'] = pd.to_numeric(df['Age'], errors='coerce')
+        
         # Create risk score based on symptoms
         symptom_cols = ['Fever', 'Cough', 'Fatigue', 'Difficulty Breathing']
         df['symptom_count'] = df[symptom_cols].apply(
@@ -115,6 +118,8 @@ class FeatureEngineer:
         X_selected = self.feature_selector.fit_transform(X, y)
         selected_mask = self.feature_selector.get_support()
         self.selected_features = X.columns[selected_mask]
+        # Save the selected feature order in the selector for later use
+        self.feature_selector.selected_features = list(self.selected_features)
         
         return pd.DataFrame(X_selected, columns=self.selected_features)
     
