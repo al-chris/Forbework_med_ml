@@ -47,6 +47,13 @@ def main():
     import joblib
     fs_path = os.path.join(output_dir, 'feature_selector.pkl')
     joblib.dump(engineer.feature_selector, fs_path)
+
+    # After training, save the engineering state
+    engineer_state = {
+        'scaler': engineer.scaler,
+        'label_encoders': engineer.label_encoders
+    }
+    joblib.dump(engineer_state, 'results/engineer_state.pkl')
     
     # Save results
     print("\nSaving results...")
